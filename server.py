@@ -1,20 +1,16 @@
 import socket
 import pickle
-import random
+from key_manager import load_keys
 
 HOST = '127.0.0.1'
 PORT = 8080
 
-def generate_secret_key(p):
-    return random.randint(2, p-2)
-
-def calculate_public_key(g, a, p):
-    return pow(g, a, p)
-
-def calculate_shared_secret(B, a, p):
-    return pow(B, a, p)
-
 def main():
+    # Загружаем или генерируем ключи
+    keys = load_keys("server_keys.pkl")
+    p, g, a = keys['p'], keys['g'], int(keys['private'], 16)
+    A = keys['public']
+    
     with socket.socket() as sock:
         sock.bind((HOST, PORT))
         sock.listen(1)
@@ -24,21 +20,18 @@ def main():
         with conn:
             print(f"Connected by {addr}")
             
-            # Получаем параметры от клиента
+            # Получаем публичный ключ клиента
             data = conn.recv(1024)
-            p, g, A = pickle.loads(data)
-            print(f"Received from client: p={p}, g={g}, A={A}")
+            client_A = pickle.loads(data)
             
-            # Генерируем свой секретный ключ и вычисляем B
-            b = generate_secret_key(p)
-            B = calculate_public_key(g, b, p)
-            
-            # Отправляем B клиенту
-            conn.sendall(pickle.dumps(B))
+            # Отправляем свой публичный ключ
+            conn.sendall(pickle.dumps(A))
             
             # Вычисляем общий секрет
-            K = calculate_shared_secret(A, b, p)
-            print(f"Shared secret: {K}")
+            K = pow(client_A, a, p)
+            print(f"Shared secret established: {K}")
+            
+            # Теперь можно использовать K для симметричного шифрования
 
 if __name__ == "__main__":
     main()
